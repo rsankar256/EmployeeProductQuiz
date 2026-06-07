@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
-import type { Question, Option, Product, EmployeeCode } from '../lib/supabase';
+import type { Question, Answer, Option, Product, EmployeeCode } from '../lib/supabase';
 import {
   Plus, Trash2, CreditCard as Edit2, X, Check, ChevronDown, ChevronUp,
   ArrowLeft, Package, Users, Upload, FileText, AlertCircle, Loader2, Download, BarChart2,
-  Search,
+  Search, Filter,
 } from 'lucide-react';
 
 interface Props {
@@ -73,6 +73,15 @@ export default function AdminScreen({ onBack }: Props) {
   const [clearSessionsConfirm, setClearSessionsConfirm] = useState(false);
   const [loadingSessionCount, setLoadingSessionCount] = useState(false);
 
+  // --- Export state ---
+  const [exportFrom, setExportFrom] = useState('');
+  const [exportTo, setExportTo] = useState('');
+  const [exportState, setExportState] = useState('ALL');
+  const [exportProduct, setExportProduct] = useState('ALL');
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState('');
+  const [availableStates, setAvailableStates] = useState<string[]>([]);
+
   useEffect(() => {
     supabase.from('products').select('*').order('product_code').then(({ data }) => {
       if (data) {
@@ -115,9 +124,143 @@ export default function AdminScreen({ onBack }: Props) {
     setClearSessionsConfirm(false);
   };
 
+  const loadAvailableStates = async () => {
+    const { data } = await supabase
+      .from('employee_codes')
+      .select('state')
+      .neq('state', '');
+    if (data) {
+      const unique = [...new Set(data.map(r => r.state as string))].filter(Boolean).sort();
+      setAvailableStates(unique);
+    }
+  };
+
+  const handleExport = async () => {
+    setExporting(true);
+    setExportError('');
+    try {
+      let query = supabase
+        .from('quiz_sessions')
+        .select('*')
+        .order('completed_at', { ascending: false });
+
+      if (exportFrom) query = query.gte('completed_at', exportFrom + 'T00:00:00');
+      if (exportTo)   query = query.lte('completed_at', exportTo + 'T23:59:59');
+      if (exportProduct !== 'ALL') query = query.eq('product_id', exportProduct);
+
+      const { data: sessions, error } = await query;
+      if (error || !sessions) { setExportError('Failed to fetch sessions.'); setExporting(false); return; }
+
+      let filtered = sessions;
+
+      // State filter: look up employee codes in that state
+      if (exportState !== 'ALL') {
+        const { data: stateCodes } = await supabase
+          .from('employee_codes')
+          .select('code')
+          .eq('state', exportState);
+        const codeSet = new Set((stateCodes ?? []).map(c => c.code as string));
+        filtered = sessions.filter(s => s.employee_code && codeSet.has(s.employee_code));
+      }
+
+      if (filtered.length === 0) {
+        setExportError('No records match the selected filters.');
+        setExporting(false);
+        return;
+      }
+
+      // Fetch employee details
+      const uniqueCodes = [...new Set(filtered.map(s => s.employee_code).filter(Boolean))];
+      const { data: empData } = await supabase
+        .from('employee_codes')
+        .select('code, name, state, category, role, reporting_manager')
+        .in('code', uniqueCodes);
+      const empMap = new Map((empData ?? []).map(e => [e.code as string, e]));
+
+      // Fetch questions for all product IDs
+      const uniqueProductIds = [...new Set(filtered.map(s => s.product_id).filter(Boolean))];
+      const { data: questData } = await supabase
+        .from('questions')
+        .select('id, question_text, correct_option, options')
+        .in('product_id', uniqueProductIds);
+      const questMap = new Map((questData ?? []).map(q => [q.id as string, q]));
+
+      // Build CSV
+      const headers = [
+        'Date', 'Time', 'Employee Code', 'Employee Name', 'State', 'Category', 'Role', 'Reporting Manager',
+        'Product', 'Score', 'Total Questions', '% Score',
+        'Q1 Question', 'Q1 Selected', 'Q1 Correct Answer', 'Q1 Result',
+        'Q2 Question', 'Q2 Selected', 'Q2 Correct Answer', 'Q2 Result',
+        'Q3 Question', 'Q3 Selected', 'Q3 Correct Answer', 'Q3 Result',
+        'Q4 Question', 'Q4 Selected', 'Q4 Correct Answer', 'Q4 Result',
+        'Q5 Question', 'Q5 Selected', 'Q5 Correct Answer', 'Q5 Result',
+      ];
+
+      const rows = filtered.map(s => {
+        const emp = empMap.get(s.employee_code) as Record<string, string> | undefined;
+        const product = products.find(p => p.id === s.product_id);
+        const dt = new Date(s.completed_at);
+        const answers = (s.answers ?? []) as Answer[];
+        const total = answers.length || 5;
+        const correct = s.correct_count ?? s.score ?? 0;
+
+        const row: (string | number)[] = [
+          dt.toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+          dt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
+          s.employee_code ?? '',
+          emp?.name ?? s.employee_name ?? '',
+          emp?.state ?? '',
+          emp?.category ?? '',
+          emp?.role ?? '',
+          emp?.reporting_manager ?? '',
+          product?.name ?? '',
+          correct,
+          total,
+          Math.round((correct / total) * 100) + '%',
+        ];
+
+        for (let i = 0; i < 5; i++) {
+          const ans = answers[i] as Answer | undefined;
+          if (ans) {
+            const q = questMap.get(ans.question_id) as { question_text: string; correct_option: string; options: { label: string; text: string }[] } | undefined;
+            const correctLabel = q?.correct_option ?? '';
+            const correctText = q?.options?.find(o => o.label === correctLabel)?.text ?? correctLabel;
+            const selectedText = ans.selected_option
+              ? (q?.options?.find(o => o.label === ans.selected_option)?.text ?? ans.selected_option)
+              : 'No Answer';
+            row.push(
+              q?.question_text ?? '',
+              selectedText,
+              correctText,
+              !ans.selected_option ? 'Timed Out' : ans.is_correct ? 'Correct' : 'Incorrect',
+            );
+          } else {
+            row.push('', '', '', '');
+          }
+        }
+        return row;
+      });
+
+      const csv = [headers, ...rows]
+        .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+        .join('\n');
+
+      const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `quiz_responses_${new Date().toISOString().split('T')[0]}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      setExportError('An unexpected error occurred during export.');
+    }
+    setExporting(false);
+  };
+
   useEffect(() => {
     if (activeTab === 'employees') loadCodes();
-    if (activeTab === 'sessions') loadSessionCount();
+    if (activeTab === 'sessions') { loadSessionCount(); loadAvailableStates(); }
   }, [activeTab]);
 
   // ---- Question handlers ----
@@ -784,6 +927,123 @@ export default function AdminScreen({ onBack }: Props) {
           {/* ===== LEADERBOARD/SESSIONS TAB ===== */}
           {activeTab === 'sessions' && (
             <div className="space-y-4">
+
+              {/* Export card */}
+              <div className="bg-white rounded-2xl overflow-hidden shadow-2xl shadow-black/30">
+                <div className="px-5 py-4 border-b border-slate-100">
+                  <h2 className="font-bold text-slate-800 flex items-center gap-2">
+                    <Filter className="w-4 h-4 text-slate-600" />
+                    Export Quiz Responses
+                  </h2>
+                  <p className="text-slate-500 text-xs mt-1">
+                    Apply filters and download all matching responses as a CSV file (opens in Excel).
+                  </p>
+                </div>
+
+                <div className="p-5 space-y-4">
+                  {/* Date range */}
+                  <div>
+                    <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Date Range</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs text-slate-500 mb-1 block">From</label>
+                        <input
+                          type="date"
+                          value={exportFrom}
+                          onChange={e => setExportFrom(e.target.value)}
+                          className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-300 text-slate-700"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-slate-500 mb-1 block">To</label>
+                        <input
+                          type="date"
+                          value={exportTo}
+                          onChange={e => setExportTo(e.target.value)}
+                          className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-300 text-slate-700"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* State & Product filters */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">State</label>
+                      <select
+                        value={exportState}
+                        onChange={e => setExportState(e.target.value)}
+                        className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-300 text-slate-700 bg-white"
+                      >
+                        <option value="ALL">All States</option>
+                        {availableStates.map(s => (
+                          <option key={s} value={s}>{s}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">Product</label>
+                      <select
+                        value={exportProduct}
+                        onChange={e => setExportProduct(e.target.value)}
+                        className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-300 text-slate-700 bg-white"
+                      >
+                        <option value="ALL">All Products</option>
+                        {products.map(p => (
+                          <option key={p.id} value={p.id}>{p.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Applied filters summary */}
+                  {(exportFrom || exportTo || exportState !== 'ALL' || exportProduct !== 'ALL') && (
+                    <div className="flex flex-wrap gap-2">
+                      {exportFrom && <span className="bg-blue-50 text-blue-700 text-xs font-medium px-2.5 py-1 rounded-full border border-blue-200">From: {exportFrom}</span>}
+                      {exportTo && <span className="bg-blue-50 text-blue-700 text-xs font-medium px-2.5 py-1 rounded-full border border-blue-200">To: {exportTo}</span>}
+                      {exportState !== 'ALL' && <span className="bg-blue-50 text-blue-700 text-xs font-medium px-2.5 py-1 rounded-full border border-blue-200">State: {exportState}</span>}
+                      {exportProduct !== 'ALL' && <span className="bg-blue-50 text-blue-700 text-xs font-medium px-2.5 py-1 rounded-full border border-blue-200">Product: {products.find(p => p.id === exportProduct)?.name}</span>}
+                      <button
+                        onClick={() => { setExportFrom(''); setExportTo(''); setExportState('ALL'); setExportProduct('ALL'); setExportError(''); }}
+                        className="text-slate-400 hover:text-slate-600 text-xs underline"
+                      >
+                        Clear filters
+                      </button>
+                    </div>
+                  )}
+
+                  {exportError && (
+                    <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+                      <AlertCircle className="w-4 h-4 text-amber-500 flex-shrink-0" />
+                      <p className="text-amber-800 text-sm">{exportError}</p>
+                    </div>
+                  )}
+
+                  <button
+                    onClick={handleExport}
+                    disabled={exporting}
+                    className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-bold py-3.5 rounded-xl transition-all shadow-lg shadow-blue-600/20"
+                  >
+                    {exporting ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        Preparing download...
+                      </>
+                    ) : (
+                      <>
+                        <Download className="w-5 h-5" />
+                        Download CSV
+                      </>
+                    )}
+                  </button>
+
+                  <p className="text-xs text-slate-400 text-center">
+                    Includes employee details, product, score, and per-question breakdown (Q1–Q5).
+                  </p>
+                </div>
+              </div>
+
+              {/* Session count + clear */}
               <div className="bg-white rounded-2xl overflow-hidden shadow-2xl shadow-black/30">
                 <div className="px-5 py-4 border-b border-slate-100">
                   <h2 className="font-bold text-slate-800 flex items-center gap-2">
