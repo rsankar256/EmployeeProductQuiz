@@ -4,6 +4,7 @@ import type { Question, Option, Product, EmployeeCode } from '../lib/supabase';
 import {
   Plus, Trash2, CreditCard as Edit2, X, Check, ChevronDown, ChevronUp,
   ArrowLeft, Package, Users, Upload, FileText, AlertCircle, Loader2, Download, BarChart2,
+  Search,
 } from 'lucide-react';
 
 interface Props {
@@ -23,6 +24,22 @@ interface EditableQuestion {
   isEditing?: boolean;
 }
 
+interface StaffRow {
+  code: string;
+  name: string;
+  reporting_manager: string;
+  state: string;
+  category: string;
+  role: string;
+}
+
+const CATEGORY_COLORS: Record<string, string> = {
+  'Mace': 'bg-blue-100 text-blue-700',
+  'Pre-cast': 'bg-purple-100 text-purple-700',
+  'NT/Concrete Tech': 'bg-orange-100 text-orange-700',
+  'Trainee': 'bg-green-100 text-green-700',
+};
+
 export default function AdminScreen({ onBack }: Props) {
   const [activeTab, setActiveTab] = useState<Tab>('questions');
 
@@ -39,14 +56,16 @@ export default function AdminScreen({ onBack }: Props) {
   const [newProductDesc, setNewProductDesc] = useState('');
   const [showAddProduct, setShowAddProduct] = useState(false);
 
-  // --- Employee codes state ---
+  // --- Staff state ---
   const [employeeCodes, setEmployeeCodes] = useState<EmployeeCode[]>([]);
   const [loadingCodes, setLoadingCodes] = useState(false);
   const [uploadingCodes, setUploadingCodes] = useState(false);
-  const [uploadResult, setUploadResult] = useState<{ added: number; skipped: number } | null>(null);
+  const [uploadResult, setUploadResult] = useState<{ added: number; updated: number } | null>(null);
   const [uploadError, setUploadError] = useState('');
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [clearConfirm, setClearConfirm] = useState(false);
+  const [replaceMode, setReplaceMode] = useState(false);
+  const [staffFilter, setStaffFilter] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // --- Sessions state ---
@@ -76,7 +95,7 @@ export default function AdminScreen({ onBack }: Props) {
 
   const loadCodes = async () => {
     setLoadingCodes(true);
-    const { data } = await supabase.from('employee_codes').select('*').order('code');
+    const { data } = await supabase.from('employee_codes').select('*').order('name');
     if (data) setEmployeeCodes(data as EmployeeCode[]);
     setLoadingCodes(false);
   };
@@ -166,84 +185,61 @@ export default function AdminScreen({ onBack }: Props) {
     setSelectedProductId(remaining.length > 0 ? remaining[0].id : '');
   };
 
-  // ---- Employee code handlers ----
-  const parsePdfText = (text: string): string[] => {
-    // Split by newlines and whitespace, filter to valid-looking codes
-    return text
-      .split(/[\r\n\s,;]+/)
-      .map(s => s.trim().toUpperCase())
-      .filter(s => s.length >= 3 && s.length <= 10 && /^[A-Z0-9]+$/.test(s));
+  // ---- Staff handlers ----
+  const parseStaffCsv = (text: string): StaffRow[] => {
+    const lines = text.split(/\r?\n/).filter(l => l.trim());
+    const results: StaffRow[] = [];
+    for (const line of lines) {
+      if (/^employee\s*code/i.test(line.trim())) continue;
+      const parts = line.split(',');
+      if (parts.length < 6) continue;
+      const code = parts[0].trim().toUpperCase();
+      if (!code || code.length < 3) continue;
+      results.push({
+        code,
+        name: parts[1].trim(),
+        reporting_manager: parts[2].trim(),
+        state: parts[3].trim(),
+        category: parts[4].trim(),
+        role: parts[5].trim(),
+      });
+    }
+    return results;
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     setUploadError('');
     setUploadResult(null);
     setUploadingCodes(true);
 
     try {
-      let text = '';
+      const text = await file.text();
+      const rows = parseStaffCsv(text);
 
-      if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
-        // Read PDF as ArrayBuffer and extract text via a simple approach
-        // We'll use the FileReader to get text content
-        text = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = async (ev) => {
-            try {
-              const buffer = ev.target?.result as ArrayBuffer;
-              // Extract readable ASCII text from PDF bytes
-              const bytes = new Uint8Array(buffer);
-              let raw = '';
-              for (let i = 0; i < bytes.length; i++) {
-                const c = bytes[i];
-                if (c >= 32 && c < 127) raw += String.fromCharCode(c);
-                else raw += ' ';
-              }
-              resolve(raw);
-            } catch (err) {
-              reject(err);
-            }
-          };
-          reader.onerror = reject;
-          reader.readAsArrayBuffer(file);
-        });
-      } else if (file.type === 'text/plain' || file.name.endsWith('.txt') || file.name.endsWith('.csv')) {
-        text = await file.text();
-      } else {
-        text = await file.text();
-      }
-
-      const codes = parsePdfText(text);
-
-      if (codes.length === 0) {
-        setUploadError('No valid employee codes found in the file. Make sure codes are one per line.');
+      if (rows.length === 0) {
+        setUploadError('No valid staff rows found. Check the CSV format matches the sample.');
         setUploadingCodes(false);
         if (fileInputRef.current) fileInputRef.current.value = '';
         return;
       }
 
-      // Upsert all codes (skip duplicates)
-      const rows = codes.map(code => ({ code }));
-      let added = 0;
-      let skipped = 0;
-
-      // Insert in batches of 100
-      for (let i = 0; i < rows.length; i += 100) {
-        const batch = rows.slice(i, i + 100);
-        const { data, error } = await supabase
-          .from('employee_codes')
-          .upsert(batch, { onConflict: 'code', ignoreDuplicates: true })
-          .select('code');
-        if (!error && data) {
-          added += data.length;
-          skipped += batch.length - data.length;
-        }
+      if (replaceMode) {
+        await supabase.from('employee_codes').delete().neq('id', '00000000-0000-0000-0000-000000000000');
       }
 
-      setUploadResult({ added, skipped });
+      let added = 0;
+      for (let i = 0; i < rows.length; i += 100) {
+        const batch = rows.slice(i, i + 100);
+        const { data } = await supabase
+          .from('employee_codes')
+          .upsert(batch, { onConflict: 'code', ignoreDuplicates: false })
+          .select('code');
+        if (data) added += data.length;
+      }
+
+      setUploadResult({ added: replaceMode ? rows.length : added, updated: replaceMode ? 0 : 0 });
       loadCodes();
     } catch {
       setUploadError('Failed to read the file. Please try again.');
@@ -265,28 +261,35 @@ export default function AdminScreen({ onBack }: Props) {
     setClearConfirm(false);
   };
 
-  const downloadSamplePdf = () => {
-    const content = [
-      'Employee Codes — Sample Format',
-      '',
-      'Instructions:',
-      'List one employee code per line.',
-      'Codes can be alphanumeric (3–10 characters).',
-      '',
-      'M10001',
-      'M10002',
-      'M10003',
-      'M10004',
-      'M10005',
+  const downloadSampleCsv = () => {
+    const rows = [
+      'Employee Code,Employee Name,Reporting Manager,State,Pre-cast/Mace/Non-Trade,Manager or Engineer',
+      'M10001,JOHN DOE,MANAGER NAME,KERALA,Mace,Engineer',
+      'M10002,JANE SMITH,MANAGER NAME,TAMIL NADU,Mace,Manager',
+      'M10003,ALEX KUMAR,MANAGER NAME,KARNATAKA,Pre-cast,Engineer',
+      'M10004,PRIYA NAIR,MANAGER NAME,ANDHRA PRADESH,NT/Concrete Tech,Engineer',
+      'M10005,RAVI SHANKAR,MANAGER NAME,TELANGANA,Trainee,Engineer',
     ].join('\n');
-    const blob = new Blob([content], { type: 'text/plain' });
+    const blob = new Blob([rows], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'employee_codes_sample.txt';
+    a.download = 'staff_upload_template.csv';
     a.click();
     URL.revokeObjectURL(url);
   };
+
+  const filteredStaff = employeeCodes.filter(ec => {
+    if (!staffFilter.trim()) return true;
+    const q = staffFilter.toLowerCase();
+    return (
+      ec.code.toLowerCase().includes(q) ||
+      ec.name.toLowerCase().includes(q) ||
+      ec.state.toLowerCase().includes(q) ||
+      ec.reporting_manager.toLowerCase().includes(q) ||
+      ec.category.toLowerCase().includes(q)
+    );
+  });
 
   if (loadingProducts) return (
     <div className="min-h-screen flex items-center justify-center text-white" style={{ background: 'linear-gradient(135deg, #003087 0%, #001d5e 60%, #00123d 100%)' }}>
@@ -306,7 +309,7 @@ export default function AdminScreen({ onBack }: Props) {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 px-4 pt-4 max-w-3xl mx-auto w-full">
+      <div className="flex gap-1 px-4 pt-4 max-w-5xl mx-auto w-full">
         <button
           onClick={() => setActiveTab('questions')}
           className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all ${
@@ -327,7 +330,7 @@ export default function AdminScreen({ onBack }: Props) {
           }`}
         >
           <Users className="w-4 h-4" />
-          Employee Codes
+          Staff
           {employeeCodes.length > 0 && (
             <span className={`text-xs px-2 py-0.5 rounded-full ${
               activeTab === 'employees' ? 'bg-blue-100 text-blue-700' : 'bg-white/20 text-white'
@@ -353,7 +356,7 @@ export default function AdminScreen({ onBack }: Props) {
       </div>
 
       <div className="flex-1 overflow-y-auto p-4">
-        <div className="max-w-3xl mx-auto space-y-5">
+        <div className="max-w-5xl mx-auto space-y-5">
 
           {/* ===== QUESTIONS TAB ===== */}
           {activeTab === 'questions' && (
@@ -542,7 +545,7 @@ export default function AdminScreen({ onBack }: Props) {
             </>
           )}
 
-          {/* ===== EMPLOYEE CODES TAB ===== */}
+          {/* ===== STAFF TAB ===== */}
           {activeTab === 'employees' && (
             <div className="space-y-4">
 
@@ -551,44 +554,55 @@ export default function AdminScreen({ onBack }: Props) {
                 <div className="px-5 py-4 border-b border-slate-100">
                   <h2 className="font-bold text-slate-800 flex items-center gap-2">
                     <Upload className="w-4 h-4 text-slate-600" />
-                    Upload Employee Codes
+                    Upload Staff CSV
                   </h2>
                   <p className="text-slate-500 text-xs mt-1">
-                    Upload a PDF or text file with one employee code per line. New codes are added; existing ones are kept.
+                    Upload a CSV file in the required format to add or replace staff records.
                   </p>
                 </div>
 
                 <div className="p-5 space-y-4">
-                  {/* Sample format info */}
+                  {/* Sample format */}
                   <div className="flex items-start gap-3 bg-blue-50 border border-blue-100 rounded-xl p-4">
                     <FileText className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-                    <div className="flex-1">
-                      <p className="text-blue-800 font-semibold text-sm">Sample Format</p>
-                      <p className="text-blue-600 text-xs mt-1 leading-relaxed">
-                        Each employee code on its own line. Codes must be 3–10 alphanumeric characters.
-                      </p>
-                      <div className="mt-2 bg-white border border-blue-200 rounded-lg px-3 py-2 font-mono text-xs text-slate-600 space-y-0.5">
-                        <p>M10001</p>
-                        <p>M10002</p>
-                        <p>M10003</p>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-blue-800 font-semibold text-sm">Required CSV Format</p>
+                      <div className="mt-2 bg-white border border-blue-200 rounded-lg px-3 py-2 font-mono text-xs text-slate-600 overflow-x-auto">
+                        <p className="text-blue-600 font-semibold">Employee Code,Employee Name,Reporting Manager,State,Pre-cast/Mace/Non-Trade,Manager or Engineer</p>
+                        <p>M10001,JOHN DOE,MANAGER NAME,KERALA,Mace,Engineer</p>
+                        <p>M10002,JANE SMITH,MANAGER NAME,TAMIL NADU,Mace,Manager</p>
                         <p className="text-slate-400">...</p>
                       </div>
                       <button
-                        onClick={downloadSamplePdf}
+                        onClick={downloadSampleCsv}
                         className="mt-2 flex items-center gap-1.5 text-blue-700 hover:text-blue-900 text-xs font-semibold transition-colors"
                       >
                         <Download className="w-3.5 h-3.5" />
-                        Download sample file
+                        Download sample CSV template
                       </button>
                     </div>
                   </div>
+
+                  {/* Replace mode toggle */}
+                  <label className="flex items-center gap-3 p-3 bg-amber-50 border border-amber-200 rounded-xl cursor-pointer hover:bg-amber-100 transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={replaceMode}
+                      onChange={e => setReplaceMode(e.target.checked)}
+                      className="w-4 h-4 accent-amber-500"
+                    />
+                    <div>
+                      <p className="text-amber-900 font-semibold text-sm">Replace all existing staff</p>
+                      <p className="text-amber-700 text-xs mt-0.5">When checked, all current staff records are deleted before importing. When unchecked, records are added or updated by employee code.</p>
+                    </div>
+                  </label>
 
                   {/* Upload button */}
                   <div>
                     <input
                       ref={fileInputRef}
                       type="file"
-                      accept=".pdf,.txt,.csv"
+                      accept=".csv,.txt"
                       onChange={handleFileUpload}
                       className="hidden"
                     />
@@ -600,12 +614,12 @@ export default function AdminScreen({ onBack }: Props) {
                       {uploadingCodes ? (
                         <>
                           <Loader2 className="w-5 h-5 animate-spin" />
-                          Processing file...
+                          Processing...
                         </>
                       ) : (
                         <>
                           <Upload className="w-5 h-5" />
-                          Choose PDF or Text File
+                          Choose CSV File
                         </>
                       )}
                     </button>
@@ -615,8 +629,7 @@ export default function AdminScreen({ onBack }: Props) {
                     <div className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-xl px-4 py-3">
                       <Check className="w-4 h-4 text-green-600 flex-shrink-0" />
                       <p className="text-green-800 text-sm font-medium">
-                        {uploadResult.added} code{uploadResult.added !== 1 ? 's' : ''} added
-                        {uploadResult.skipped > 0 && `, ${uploadResult.skipped} already existed`}
+                        {uploadResult.added} staff record{uploadResult.added !== 1 ? 's' : ''} imported successfully.
                       </p>
                     </div>
                   )}
@@ -630,12 +643,12 @@ export default function AdminScreen({ onBack }: Props) {
                 </div>
               </div>
 
-              {/* Codes list */}
+              {/* Staff directory */}
               <div className="bg-white rounded-2xl overflow-hidden shadow-2xl shadow-black/30">
                 <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
                   <h2 className="font-bold text-slate-800 flex items-center gap-2">
                     <Users className="w-4 h-4 text-slate-600" />
-                    Allowed Codes
+                    Staff Directory
                     <span className="text-slate-400 font-normal text-sm">({employeeCodes.length})</span>
                   </h2>
                   {employeeCodes.length > 0 && (
@@ -649,6 +662,25 @@ export default function AdminScreen({ onBack }: Props) {
                   )}
                 </div>
 
+                {/* Search */}
+                {employeeCodes.length > 0 && (
+                  <div className="px-4 py-3 border-b border-slate-100">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                      <input
+                        type="text"
+                        value={staffFilter}
+                        onChange={e => setStaffFilter(e.target.value)}
+                        placeholder="Search by code, name, state, manager..."
+                        className="w-full pl-9 pr-4 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-300"
+                      />
+                    </div>
+                    {staffFilter && (
+                      <p className="text-xs text-slate-400 mt-1.5">{filteredStaff.length} of {employeeCodes.length} results</p>
+                    )}
+                  </div>
+                )}
+
                 {loadingCodes ? (
                   <div className="flex items-center justify-center py-10 text-slate-400">
                     <Loader2 className="w-5 h-5 animate-spin mr-2" /> Loading...
@@ -656,31 +688,73 @@ export default function AdminScreen({ onBack }: Props) {
                 ) : employeeCodes.length === 0 ? (
                   <div className="py-10 text-center text-slate-400 text-sm">
                     <Users className="w-8 h-8 mx-auto mb-3 opacity-30" />
-                    <p>No employee codes uploaded yet.</p>
-                    <p className="text-xs mt-1">Upload a file above to restrict quiz access.</p>
-                    <p className="text-xs mt-2 text-slate-300">While empty, any valid code format is accepted.</p>
+                    <p>No staff records yet.</p>
+                    <p className="text-xs mt-1">Upload a CSV above to add staff and restrict quiz access.</p>
+                    <p className="text-xs mt-2 text-slate-300">While empty, any valid-format code is accepted.</p>
                   </div>
                 ) : (
-                  <div className="divide-y divide-slate-100 max-h-96 overflow-y-auto">
-                    {employeeCodes.map(ec => (
-                      <div key={ec.id} className="flex items-center justify-between px-5 py-3">
-                        <span className="font-mono font-bold text-slate-700 text-sm">{ec.code}</span>
-                        {deleteConfirm === ec.id ? (
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs text-red-500 font-medium">Delete?</span>
-                            <button onClick={() => deleteCode(ec.id)} className="px-2.5 py-1 bg-red-500 text-white text-xs font-bold rounded-lg hover:bg-red-600">Yes</button>
-                            <button onClick={() => setDeleteConfirm(null)} className="px-2.5 py-1 bg-slate-200 text-slate-600 text-xs font-bold rounded-lg hover:bg-slate-300">No</button>
-                          </div>
-                        ) : (
-                          <button
-                            onClick={() => setDeleteConfirm(ec.id)}
-                            className="p-1.5 bg-red-50 hover:bg-red-100 text-red-400 rounded-lg transition-colors"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                      </div>
-                    ))}
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="bg-slate-50 border-b border-slate-100">
+                          <th className="text-left px-4 py-2.5 text-xs font-bold text-slate-500 uppercase tracking-wider">Code</th>
+                          <th className="text-left px-4 py-2.5 text-xs font-bold text-slate-500 uppercase tracking-wider">Name</th>
+                          <th className="text-left px-4 py-2.5 text-xs font-bold text-slate-500 uppercase tracking-wider hidden md:table-cell">Manager</th>
+                          <th className="text-left px-4 py-2.5 text-xs font-bold text-slate-500 uppercase tracking-wider hidden sm:table-cell">State</th>
+                          <th className="text-left px-4 py-2.5 text-xs font-bold text-slate-500 uppercase tracking-wider hidden lg:table-cell">Category</th>
+                          <th className="text-left px-4 py-2.5 text-xs font-bold text-slate-500 uppercase tracking-wider hidden lg:table-cell">Role</th>
+                          <th className="px-4 py-2.5 w-10"></th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 max-h-[500px]">
+                        {filteredStaff.slice(0, 300).map(ec => (
+                          <tr key={ec.id} className="hover:bg-slate-50 transition-colors">
+                            <td className="px-4 py-2.5">
+                              <span className="font-mono font-bold text-slate-700 text-xs bg-slate-100 px-2 py-0.5 rounded">{ec.code}</span>
+                            </td>
+                            <td className="px-4 py-2.5">
+                              <p className="font-medium text-slate-700 text-xs">{ec.name || <span className="text-slate-400 italic">—</span>}</p>
+                            </td>
+                            <td className="px-4 py-2.5 hidden md:table-cell">
+                              <p className="text-slate-500 text-xs truncate max-w-[140px]">{ec.reporting_manager || '—'}</p>
+                            </td>
+                            <td className="px-4 py-2.5 hidden sm:table-cell">
+                              <p className="text-slate-500 text-xs">{ec.state || '—'}</p>
+                            </td>
+                            <td className="px-4 py-2.5 hidden lg:table-cell">
+                              {ec.category ? (
+                                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${CATEGORY_COLORS[ec.category] ?? 'bg-slate-100 text-slate-600'}`}>
+                                  {ec.category}
+                                </span>
+                              ) : <span className="text-slate-400 text-xs">—</span>}
+                            </td>
+                            <td className="px-4 py-2.5 hidden lg:table-cell">
+                              <span className={`text-xs font-medium ${ec.role === 'Manager' ? 'text-blue-600' : 'text-slate-500'}`}>
+                                {ec.role || '—'}
+                              </span>
+                            </td>
+                            <td className="px-4 py-2.5 text-right">
+                              {deleteConfirm === ec.id ? (
+                                <div className="flex items-center gap-1 justify-end">
+                                  <button onClick={() => deleteCode(ec.id)} className="px-2 py-1 bg-red-500 text-white text-xs font-bold rounded hover:bg-red-600">Yes</button>
+                                  <button onClick={() => setDeleteConfirm(null)} className="px-2 py-1 bg-slate-200 text-slate-600 text-xs font-bold rounded hover:bg-slate-300">No</button>
+                                </div>
+                              ) : (
+                                <button
+                                  onClick={() => setDeleteConfirm(ec.id)}
+                                  className="p-1 bg-red-50 hover:bg-red-100 text-red-400 rounded transition-colors"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    {filteredStaff.length > 300 && (
+                      <p className="text-center text-slate-400 text-xs py-3">Showing first 300 of {filteredStaff.length} results. Use search to narrow down.</p>
+                    )}
                   </div>
                 )}
               </div>
@@ -689,9 +763,9 @@ export default function AdminScreen({ onBack }: Props) {
               {clearConfirm && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
                   <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl">
-                    <h3 className="font-bold text-slate-800 text-lg mb-2">Clear all codes?</h3>
+                    <h3 className="font-bold text-slate-800 text-lg mb-2">Clear all staff?</h3>
                     <p className="text-slate-500 text-sm mb-5">
-                      This will remove all {employeeCodes.length} employee codes. Any valid-format code will then be accepted for quiz entry.
+                      This will remove all {employeeCodes.length} staff records. Any valid-format code will then be accepted for quiz entry.
                     </p>
                     <div className="flex gap-3">
                       <button onClick={clearAllCodes} className="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold py-2.5 rounded-xl text-sm transition-colors">
@@ -710,7 +784,6 @@ export default function AdminScreen({ onBack }: Props) {
           {/* ===== LEADERBOARD/SESSIONS TAB ===== */}
           {activeTab === 'sessions' && (
             <div className="space-y-4">
-              {/* Clear sessions card */}
               <div className="bg-white rounded-2xl overflow-hidden shadow-2xl shadow-black/30">
                 <div className="px-5 py-4 border-b border-slate-100">
                   <h2 className="font-bold text-slate-800 flex items-center gap-2">
@@ -760,7 +833,6 @@ export default function AdminScreen({ onBack }: Props) {
                 </div>
               </div>
 
-              {/* Clear sessions confirmation */}
               {clearSessionsConfirm && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
                   <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl">

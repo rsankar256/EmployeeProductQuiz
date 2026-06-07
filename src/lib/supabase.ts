@@ -54,6 +54,12 @@ export interface QuizSession {
 export interface EmployeeCode {
   id: string;
   code: string;
+  name: string;
+  reporting_manager: string;
+  state: string;
+  category: string;
+  role: string;
+  active: boolean;
   created_at: string;
 }
 
