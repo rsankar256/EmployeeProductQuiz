@@ -25,9 +25,22 @@ export interface Question {
   question_text: string;
   options: Option[];
   correct_option: string;
+  difficulty: 'easy' | 'medium' | 'hard';
   incorrect_count: number;
   attempt_count: number;
   created_at: string;
+}
+
+export type Difficulty = 'easy' | 'medium' | 'hard';
+
+export const DIFFICULTY_ORDER: Record<Difficulty, number> = { easy: 0, medium: 1, hard: 2 };
+
+export function sortByDifficulty(questions: Question[]): Question[] {
+  return [...questions].sort((a, b) => {
+    const da = DIFFICULTY_ORDER[a.difficulty] ?? 1;
+    const db = DIFFICULTY_ORDER[b.difficulty] ?? 1;
+    return da !== db ? da - db : a.order_index - b.order_index;
+  });
 }
 
 export interface Answer {

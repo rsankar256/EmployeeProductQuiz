@@ -20,6 +20,7 @@ interface EditableQuestion {
   question_text: string;
   options: Option[];
   correct_option: string;
+  difficulty: 'easy' | 'medium' | 'hard';
   isNew?: boolean;
   isEditing?: boolean;
 }
@@ -271,6 +272,7 @@ export default function AdminScreen({ onBack }: Props) {
         question_text: q.question_text,
         options: q.options,
         correct_option: q.correct_option,
+        difficulty: q.difficulty,
       }).eq('id', q.id);
     } else {
       const { data } = await supabase.from('questions').insert({
@@ -279,6 +281,7 @@ export default function AdminScreen({ onBack }: Props) {
         question_text: q.question_text,
         options: q.options,
         correct_option: q.correct_option,
+        difficulty: q.difficulty,
       }).select().maybeSingle();
       if (data) {
         setQuestions(prev => prev.map((item, i) => i === index ? { ...item, id: (data as Question).id, isNew: false } : item));
@@ -585,6 +588,7 @@ export default function AdminScreen({ onBack }: Props) {
                             { label: 'C', text: '' }, { label: 'D', text: '' },
                           ],
                           correct_option: 'A',
+                          difficulty: 'medium',
                           isNew: true, isEditing: true,
                         }]);
                         setExpanded(questions.length);
@@ -608,6 +612,13 @@ export default function AdminScreen({ onBack }: Props) {
                             <p className="text-slate-700 text-sm font-medium flex-1 truncate">
                               {q.question_text || <span className="text-slate-400 italic">New question</span>}
                             </p>
+                            {!q.isNew && (
+                              <span className={`text-xs font-bold px-2 py-0.5 rounded-full flex-shrink-0 capitalize ${
+                                q.difficulty === 'easy' ? 'bg-green-100 text-green-700' :
+                                q.difficulty === 'hard' ? 'bg-red-100 text-red-700' :
+                                'bg-yellow-100 text-yellow-700'
+                              }`}>{q.difficulty ?? 'medium'}</span>
+                            )}
                             <div className="flex items-center gap-1">
                               {q.isEditing || q.isNew ? (
                                 <>
@@ -666,6 +677,33 @@ export default function AdminScreen({ onBack }: Props) {
                                     </div>
                                   ))}
                                 </div>
+                              </div>
+                              {/* Difficulty */}
+                              <div>
+                                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">Difficulty</label>
+                                {(q.isEditing || q.isNew) ? (
+                                  <div className="flex gap-2">
+                                    {(['easy', 'medium', 'hard'] as const).map(d => (
+                                      <button
+                                        key={d}
+                                        onClick={() => updateField(i, 'difficulty', d)}
+                                        className={`flex-1 py-2 rounded-lg text-xs font-bold capitalize transition-colors ${
+                                          q.difficulty === d
+                                            ? d === 'easy' ? 'bg-green-500 text-white' : d === 'medium' ? 'bg-yellow-400 text-slate-800' : 'bg-red-500 text-white'
+                                            : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                                        }`}
+                                      >
+                                        {d}
+                                      </button>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <span className={`text-xs font-bold px-2.5 py-1 rounded-full capitalize ${
+                                    q.difficulty === 'easy' ? 'bg-green-100 text-green-700' :
+                                    q.difficulty === 'hard' ? 'bg-red-100 text-red-700' :
+                                    'bg-yellow-100 text-yellow-700'
+                                  }`}>{q.difficulty}</span>
+                                )}
                               </div>
                               {!(q.isEditing || q.isNew) && (
                                 <p className="text-xs text-slate-400">
