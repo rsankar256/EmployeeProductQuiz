@@ -1,0 +1,52 @@
+No.,Product / Topic,Difficulty,Type,Question,Option A,Option B,Option C,Option D,Correct Answer
+1,HW220/221 Screed,Easy,MCQ,HW220 Floor Screed is best described as which type of product?,A two-part epoxy tile adhesive,A polymer-modified cementitious floor screed,A cement-based tile joint grout,An internal/external wall plaster,B
+2,HW220/221 Screed,Easy,Yes/No,Does HW220 Floor Screed require external water curing after application?,Yes,No,,,No
+3,HW220/221 Screed,Medium,Numerical,What percentage of clean water by weight should be added when mixing HW220 Floor Screed? (Answer in %),8-10%,13-15%,25-30%,40-45%,13-15%
+4,HW220/221 Screed,Medium,Numerical,What is the maximum thickness HW220 can be applied in a single layer? (Answer in mm),30 mm,50 mm,80 mm,120 mm,80 mm
+5,HW220/221 Screed,Easy,MCQ,What is the recommended thickness range for HW220 Floor Screed?,10-20 mm,30-80 mm,50-100 mm,80-120 mm,B
+6,HW220/221 Screed,Medium,MCQ,HW221 is which variant of the HW Floor Screed?,The epoxy variant,The with-sand variant,The without-sand variant,The liquid ready-mix variant,C
+7,HW220/221 Screed,Easy,Yes/No,Can HW220 Floor Screed be used on external balconies and terraces?,Yes,No,,,Yes
+8,HW220/221 Screed,Medium,MCQ,What should be done to the base/substrate just before applying HW220?,Keep it completely dry,Wet the substrate,Coat it with oil,Heat the surface,B
+9,HW220/221 Screed,Easy,MCQ,"In the flooring system, HW220/221 Floor Screed replaces which conventional material?",The tile joint grout,The cement + sand screed,The wall plaster,The waterproof membrane,B
+10,HW207 Slurry,Easy,MCQ,What is HW207 Tile Fix Slurry mainly used for?,Filling tile joints,Wet-on-wet tile fixing directly over fresh screed,Plastering walls,Curing concrete slabs,B
+11,HW207 Slurry,Medium,Numerical,Approximately what percentage of water by weight is added to HW207 Tile Fix Slurry? (Answer in %),13-15%,25-30%,60-70%,90-100%,60-70%
+12,HW207 Slurry,Easy,Yes/No,Does HW207 Tile Fix Slurry require water curing?,Yes,No,,,No
+13,HW207 Slurry,Medium,MCQ,"After pouring HW207 slurry, what pattern is formed using a masonry trowel?",Smooth flat coat,Zig-zag pattern,Spray coat,Circular swirls,B
+14,HW207 Slurry,Medium,Numerical,How long should the tile bed set before grouting when using HW207? (Answer in hours),At least 6 hours,At least 12 hours,At least 24 hours,At least 72 hours,At least 24 hours
+15,HW207 Slurry,Easy,MCQ,HW207 Slurry Adhesive replaces which conventional material?,The cement + water slurry,The floor screed,The epoxy grout,The wall putty,A
+16,HW207 Slurry,Hard,Numerical,What is the 28-day bond strength of HW207 Tile Fix Slurry? (Answer in MPa),0.4-0.5 MPa,1.0-1.5 MPa,2.0-2.5 MPa,6.0 MPa,0.4-0.5 MPa
+17,HW20x Tile Fix,Easy,MCQ,The HardWork Tile Fix range conforms to which Indian Standard?,IS 456,IS 383,IS 15477:2019,IS 4031,C
+18,HW20x Tile Fix,Medium,MCQ,HW201 (Standard) corresponds to which IS 15477 type?,Type 1,Type 2,Type 3,Type 5,A
+19,HW20x Tile Fix,Medium,MCQ,HW201 Standard is suitable for fixing tiles up to which size in internal dry areas?,300 x 300 mm,600 x 600 mm,1200 x 1200 mm,2400 x 2400 mm,A
+20,HW20x Tile Fix,Medium,MCQ,"HW202 (Medium, Type 2) is recommended for tiles up to which size?",300 x 300 mm,600 x 600 mm,1200 x 1200 mm,1500 x 1500 mm,B
+21,HW20x Tile Fix,Medium,MCQ,"Which Tile Fix variant (Type 3) is recommended for wet areas and submerged surfaces, tiles up to 1200 x 1200 mm?",HW201,HW202,HW203,HW210,C
+22,HW20x Tile Fix,Hard,MCQ,"In HW204/HW206, what do the designations S1 and S2 indicate?",Storage temperature,Deformability class,Shelf life,Colour shade,B
+23,HW20x Tile Fix,Medium,MCQ,"Which Tile Fix variant is a white powder, intended for light-coloured stones and white marble/granite?",HW203,HW204,HW206 (Max White),HW210,C
+24,HW20x Tile Fix,Hard,MCQ,HW205 is which type in the Tile Fix range?,Type 1 Standard,Type 3 High,Type 4 Max,Type 5 Epoxy,D
+25,HW20x Tile Fix,Easy,Yes/No,Is HW205 a three-component (Resin + Hardener + Filler) epoxy adhesive?,Yes,No,,,Yes
+26,HW20x Tile Fix,Medium,Numerical,What is the open time of the cementitious Tile Fix (HW201-HW204)? (Answer in minutes),10 minutes,20 minutes,40 minutes,60 minutes,20 minutes
+27,HW20x Tile Fix,Medium,Numerical,What is the pot life of the cementitious Tile Fix range? (Answer in minutes),20 minutes,30 minutes,60 minutes,120 minutes,60 minutes
+28,HW20x Tile Fix,Medium,Numerical,What is the adjustability time for the cementitious Tile Fix range? (Answer in minutes),10 minutes,30 minutes,50 minutes,60 minutes,30 minutes
+29,HW20x Tile Fix,Medium,Numerical,After how many hours is a Tile Fix surface trafficable / safe for further use? (Answer in hours),6 hours,12 hours,24 hours,48 hours,24 hours
+30,HW20x Tile Fix,Hard,Numerical,What is the water demand for the cementitious Tile Fix range? (Answer in %),10-15%,25-30%,40-50%,60-70%,25-30%
+31,HW20x Tile Fix,Hard,MCQ,"What is the tensile adhesion strength (dry, 28 days) of HW205 Epoxy Tile Fix per IS 15477?",>= 0.5 MPa,>= 1.0 MPa,>= 2.0 MPa,>= 6.0 MPa,C
+32,Application,Medium,MCQ,"Per the SOP, 20 kg of HW204 should be mixed with how much clean water?",1.0-2.0 litres,3.0-4.0 litres,5.0-6.0 litres,8.0-10.0 litres,C
+33,Application,Medium,MCQ,Which tool is used to spread tile adhesive to a uniform thickness and avoid air gaps?,Flat plastic float,Notched trowel,Paint roller,Wire brush,B
+34,Application,Easy,Yes/No,Is it acceptable to apply Tile Fix adhesive below 5 deg C or above 50 deg C?,Yes,No,,,No
+35,Application,Medium,MCQ,What is the coverage of the T1-T4 HW Tilefix Fix per 20kg bag at 3mm thickness?,20-30 sq ft,40-50 sq ft,60-80 sq ft,100-120 sq ft,C
+36,Application,Hard,Numerical,"Per IS 15477, the slip of HW205 Epoxy Tile Fix should not be more than what value? (Answer in mm)",0.5 mm,1.0 mm,2.0 mm,5.0 mm,0.5 mm
+37,Application,Hard,Numerical,"What is the shear adhesion strength (dry, 28 days) of HW205 Epoxy Tile Fix? (Answer in MPa)",>= 1.0 MPa,>= 3.0 MPa,>= 6.0 MPa,>= 9.0 MPa,>= 6.0 MPa
+38,Grouts,Easy,MCQ,HW210 Tile Grout is which type of product?,Two-part epoxy grout,"Cement-based, polymer-modified grout",Polymer floor screed,Epoxy tile adhesive,B
+39,Grouts,Easy,MCQ,HW211 Tile Grout is which type of product?,Cement-based single-component grout,Two-part (2K) epoxy grout,Polymer floor screed,Tile fix slurry,B
+40,Grouts,Medium,MCQ,"Which grout is recommended for showers, kitchens, swimming pools and hospitals?",HW210 Cement Grout,HW211 Epoxy Grout,HW207 Slurry,HW220 Screed,B
+41,Grouts,Medium,Numerical,"For HW210, 1 kg of powder is mixed with how much clean water? (Answer in ml)",100-150 ml,200-250 ml,350-400 ml,600-700 ml,350-400 ml
+42,Grouts,Hard,Numerical,What is the compressive strength of HW210 Cement Grout at 28 days? (Answer in MPa),3-4 MPa,7-8 MPa,15-20 MPa,85-95 MPa,7-8 MPa
+43,Grouts,Hard,Numerical,"After applying HW211 Epoxy Grout, how long should pass before subjecting the area to further usage? (Answer in hours)",12 hours,24 hours,48 hours,72 hours,48 hours
+44,HW20X Tile Fix,Medium,MCQ,What are the primary advantages of using Tile Adhesive over conventional cement mix,Self-curing,Higher tensile adhesion,No Shrinkage,All the above,D
+45,Application,Hard,MCQ,Why spacers are important between tiles?,Proper joint filling,For easy tile fixing,Accomodation of thermal movement of Tiles,Option A & C,D
+46,Application,Easy,MCQ,What is the irrelevant tool for Tile fixing,Notched Trowel,Concrete Pump,Electrical stirrer,Rubber Hammer,B
+47,Grout,Medium,Yes/No,Can HW211 be applied on wet tile joints ,Yes,No,,,No
+48,HW20X Tile Fix,Hard,Numerical,What is the deformability value of S2 variant of HW204?,0 to 2.5mm,2.5 to 5mm,More than 5mm,None of the above,C
+49,HW20X Tile Fix,Medium,MCQ,What variant of Tilefix should be recommended for External Wall areas,HW201,HW202,HW203,HW204,C
+50,HW20X Tile Fix,Hard,MCQ,What variant of Tilefix should be recommended for fixing tiles on steel staircase,HW204 S2,HW205,HW206,HW204 S1,B
+51,HW20X Tile Fix,Hard,MCQ,What is the difference between HW204 & HW206?,Tensile adhesion,Colour,Type difference as per IS15477,All the above,B
