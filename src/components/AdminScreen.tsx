@@ -186,23 +186,29 @@ export default function AdminScreen({ onBack }: Props) {
         .in('product_id', uniqueProductIds);
       const questMap = new Map((questData ?? []).map(q => [q.id as string, q]));
 
+      // Determine the max number of answers across all sessions so we can
+      // build a dynamic set of Q-columns wide enough for the longest quiz.
+      const maxAnswers = filtered.reduce((m, s) => {
+        const len = Array.isArray(s.answers) ? (s.answers as Answer[]).length : 0;
+        return len > m ? len : m;
+      }, 0);
+      const questionColumns = Math.max(maxAnswers, 1);
+
       // Build CSV
-      const headers = [
+      const headers: string[] = [
         'Date', 'Time', 'Employee Code', 'Employee Name', 'State', 'Category', 'Role', 'Reporting Manager',
         'Product', 'Score', 'Total Questions', '% Score',
-        'Q1 Question', 'Q1 Selected', 'Q1 Correct Answer', 'Q1 Result',
-        'Q2 Question', 'Q2 Selected', 'Q2 Correct Answer', 'Q2 Result',
-        'Q3 Question', 'Q3 Selected', 'Q3 Correct Answer', 'Q3 Result',
-        'Q4 Question', 'Q4 Selected', 'Q4 Correct Answer', 'Q4 Result',
-        'Q5 Question', 'Q5 Selected', 'Q5 Correct Answer', 'Q5 Result',
       ];
+      for (let i = 1; i <= questionColumns; i++) {
+        headers.push(`Q${i} Question`, `Q${i} Selected`, `Q${i} Correct Answer`, `Q${i} Result`);
+      }
 
       const rows = filtered.map(s => {
         const emp = empMap.get(s.employee_code) as Record<string, string> | undefined;
         const product = products.find(p => p.id === s.product_id);
         const dt = new Date(s.completed_at);
         const answers = (s.answers ?? []) as Answer[];
-        const total = answers.length || 5;
+        const total = answers.length || questionColumns;
         const correct = s.correct_count ?? s.score ?? 0;
 
         const row: (string | number)[] = [
@@ -217,10 +223,10 @@ export default function AdminScreen({ onBack }: Props) {
           product?.name ?? '',
           correct,
           total,
-          Math.round((correct / total) * 100) + '%',
+          total > 0 ? Math.round((correct / total) * 100) + '%' : '0%',
         ];
 
-        for (let i = 0; i < 5; i++) {
+        for (let i = 0; i < questionColumns; i++) {
           const ans = answers[i] as Answer | undefined;
           if (ans) {
             const q = questMap.get(ans.question_id) as { question_text: string; correct_option: string; options: { label: string; text: string }[] } | undefined;
